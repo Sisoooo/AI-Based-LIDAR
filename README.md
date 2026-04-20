@@ -25,3 +25,5 @@ Deliverables: Custom AI ROS2 node, trained network model, comparison study repor
 - Read RT-2 by Google DeepMind (how VLMs output robot actions)
 - Key insight: π0 uses camera images -> you replace them with LiDAR-as-image (BEV/polar)
 - Understand: Vision = LiDAR image, Language = Goal position, Action = cmd_vel
+
+-> https://github.com/Rudresh172/mir250_robot_ros2
