@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Autonomous random navigation node for MiR250.
 
@@ -26,7 +27,7 @@ from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import OccupancyGrid
 
 
-def fetch_free_cells(node: Node) -> list:
+def fetch_free_cells(node: Node, map_topic: str, margin_m:float) -> list:
     """Block until one /map message arrives; return list of free (x, y) world coords."""
     free_cells = []
     done = [False]
@@ -37,19 +38,33 @@ def fetch_free_cells(node: Node) -> list:
         done[0] = True
         info = msg.info
         res = info.resolution
+
+        margin_cells = int(math.ceil(margin_m/res))
+        too_close = set()
+        for idx, val in enumerate(data):
+            if val != 0:
+                col idx % width
+                row = idx // width
+                for dr in range(-margin_cells, margin_cells + 1):
+                    for dc in range(-margin_cells, margin_cells + 1):
+                        if dr * dr + dc * dc <= margin_cells * margin_cells:
+                            nr, nc = row + dr, col + dc
+                            if 0 <= nr < height and 0 <= nc < width:
+                                too_close.add(nr * width + nc)
+
         ox = info.origin.position.x
         oy = info.origin.position.y
-        for idx, val in enumerate(msg.data):
-            if val == 0:  # 0 = free, 100 = occupied, -1 = unknown
-                col = idx % info.width
-                row = idx // info.width
+        for idx, val in enumerate(data):
+            if val == 0 and idx not in too_close:
+                col = idx % width
+                row = idx // width
                 free_cells.append((
                     ox + (col + 0.5) * res,
                     oy + (row + 0.5) * res,
                 ))
         node.get_logger().info(
-            f'Map received: {info.width}x{info.height} cells @ {res:.3f} m/cell — '
-            f'{len(free_cells)} free cells found.'
+            f'Map received: {width}x{height} cells @ {res:.3f} m/cell — '
+            f'{len(free_cells)} safe cells (margin={margin_m}).'
         )
 
     sub = node.create_subscription(OccupancyGrid, '/map', on_map, 1)
@@ -83,13 +98,17 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--cooldown', type=float, default=3.0,
                         help='Seconds to wait after each goal (default: 3.0)')
+    parser.add_argument('--margin', type=float, default=30,
+                        help='Min distance from obstacles for goal cells, metres (default: 5)')
+    parser.add_argument('--map_topic', type=str, default='/map',
+                        help='Map topic name (default: /map)')
     args = parser.parse_args()
 
     rclpy.init()
 
     # Read the map before starting the navigator
     map_node = rclpy.create_node('map_reader')
-    free_cells = fetch_free_cells(map_node)
+    free_cells = fetch_free_cells(map_node, args.map_topic, args.margin)
     map_node.destroy_node()
 
     if not free_cells:
@@ -98,7 +117,7 @@ def main():
         return
 
     navigator = BasicNavigator()
-    navigator.set_initial_pose(make_pose(navigator, 0.0, 0.0, 0.0))
+    navigator.setInitialPose(make_pose(navigator, 0.0, 0.0, 0.0))
     navigator.waitUntilNav2Active()
 
     print(f'Nav2 active. {len(free_cells)} candidate cells loaded. '
