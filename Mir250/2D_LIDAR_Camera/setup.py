@@ -21,7 +21,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'lidar_camera_projection_node = lidar_camera_projection.lidar_camera_projection_node:main'
+            'lidar_camera_projection_node = lidar_camera_projection.lidar_camera_projection_node:main',
+            'lidar_image_node = lidar_camera_projection.lidar_image_node:main'
         ],
     },
 )
