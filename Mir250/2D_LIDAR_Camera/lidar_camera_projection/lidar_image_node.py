@@ -52,7 +52,9 @@ class LiDARImageNode(Node):
         # PNG saving parameters
         self.declare_parameter('save_images', False)
         self.declare_parameter('output_dir', os.path.expanduser('~/Desktop/AI-Based-LIDAR/Images_maze'))
+        self.declare_parameter('save_interval_s', 7.0)
         self._frame_index = 0
+        self._last_save_time: float = 0.0
 
     # ------------------------------------------------------------------
     def scan_callback(self, scan_msg: LaserScan):
@@ -135,11 +137,15 @@ class LiDARImageNode(Node):
 
         # --- Save PNG if enabled ---
         if self.get_parameter('save_images').get_parameter_value().bool_value:
-            out_dir = self.get_parameter('output_dir').get_parameter_value().string_value
-            os.makedirs(out_dir, exist_ok=True)
-            filename = os.path.join(out_dir, f'lidar_{self._frame_index:06d}.png')
-            cv2.imwrite(filename, canvas)
-            self._frame_index += 1
+            now_s = self.get_clock().now().nanoseconds * 1e-9
+            interval = self.get_parameter('save_interval_s').get_parameter_value.double_value
+            if now_s - self._last_save_time >= interval:
+                out_dir = self.get_parameter('output_dir').get_parameter_value().string_value
+                os.makedirs(out_dir, exist_ok=True)
+                filename = os.path.join(out_dir, f'lidar_{self._frame_index:06d}.png')
+                cv2.imwrite(filename, canvas)
+                self._frame_index += 1
+                self._last_save_time = now_s
 
 
 def main(args=None):
