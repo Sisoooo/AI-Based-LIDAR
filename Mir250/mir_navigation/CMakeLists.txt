@@ -28,6 +28,7 @@ install(DIRECTORY
 
 install(PROGRAMS
   mir_random_nav.py
+  leRobotDatasetRecorder.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

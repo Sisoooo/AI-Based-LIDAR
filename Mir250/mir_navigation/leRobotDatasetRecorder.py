@@ -21,6 +21,7 @@ Important:
 """
 
 import math
+import os
 import time
 import random
 from pathlib import Path
@@ -51,8 +52,7 @@ FPS = 30
 WIDTH = 1280
 HEIGHT = 720
 
-DATASET_ROOT = Path.home() / "lerobot_ros2_rviz_dataset"
-REPO_ID = "local/ros2-rviz-goal-navigation"
+DATASET_BASE_DIR= Path.home() / "lerobot_ros2_rviz_dataset"
 ROBOT_TYPE = "ros2_mobile_robot"
 
 NUM_EPISODES = 100
@@ -146,6 +146,11 @@ class LeRobotRvizDatasetRecorder(Node):
     def __init__(self):
         super().__init__("lerobot_rviz_dataset_recorder")
 
+        self.declare_parameter("world_name", "maze")
+        world_name =self.get_parameter("world_name").get_parameter_value().string_value
+        self.dataset_root = DATASET_BASE_DIR / f"Images_{world_name}"
+        self.repo_id = f"local/ros2-rviz-{world_name}-navigation"
+
         self.latest_odom: Optional[Odometry] = None
         self.latest_cmd_vel: Twist = Twist()
 
@@ -181,8 +186,10 @@ class LeRobotRvizDatasetRecorder(Node):
         self.dataset = self.create_lerobot_dataset()
 
         self.get_logger().info("LeRobot RViz dataset recorder started.")
+        self.get_logger().info(f"World: {world_name}")
         self.get_logger().info(f"Waiting for goals on topic: {GOAL_TOPIC}")
-        self.get_logger().info(f"Recording dataset to: {DATASET_ROOT}")
+        self.get_logger().info(f"Recording dataset to: {self.dataset_root}")
+
 
     # -------------------------------------------------------------------------
     # ROS callbacks
@@ -253,8 +260,8 @@ class LeRobotRvizDatasetRecorder(Node):
         }
 
         dataset = LeRobotDataset.create(
-            repo_id=REPO_ID,
-            root=DATASET_ROOT,
+            repo_id=self.repo_id,
+            root=self.dataset_root,
             fps=FPS,
             features=features,
             robot_type=ROBOT_TYPE,
@@ -495,8 +502,6 @@ class LeRobotRvizDatasetRecorder(Node):
         if goal_pose is None:
             return
 
-        self.wait_until_odom_available()
-
         color_name, shape_name = self.choose_goal_style()
         task_prompt = self.create_prompt(color_name, shape_name)
 
@@ -520,7 +525,7 @@ class LeRobotRvizDatasetRecorder(Node):
         frame_count = 0
         episode_result = "unknown"
 
-        with mss.mss() as sct:
+        with mss.MSS(display=os.environ.get("DISPLAY", ":0")) as sct:
             while rclpy.ok():
                 loop_start = time.time()
 

@@ -126,6 +126,7 @@ def main():
         return
 
     navigator = BasicNavigator()
+    episode_goal_pub = navigator.create_publisher(PoseStamped, '/episode_goal', 10)
     navigator.setInitialPose(make_pose(navigator, 0.0, 0.0, 0.0))
     navigator.waitUntilNav2Active()
 
@@ -140,6 +141,7 @@ def main():
 
             goal = make_pose(navigator, x, y, yaw)
             print(f'Goal #{goal_count}: ({x:.2f}, {y:.2f}, {yaw:.1f}°)')
+            episode_goal_pub.publish(goal)
             navigator.goToPose(goal)
 
             while not navigator.isTaskComplete():
