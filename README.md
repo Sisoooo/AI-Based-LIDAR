@@ -47,12 +47,13 @@ ros2 launch mir_navigation amcl.py use_sim_time:=true map:=$(ros2 pkg prefix mir
 ros2 launch mir_navigation navigation.py use_sim_time:=true
 ```
 
-4. Terminal 4: Random goal publishing 
+4. Terminal 4: Dataset recorder node
+```
+ros2 run mir_navigation leRobotDatasetRecorder.py --ros-args -p world:=<world_name>
+```
+
+5. Terminal 5: Random goal publishing 
 ```
 ros2 run mir_navigation mir_random_nav.py
 ```
 
-5. Terminal 5: Dataset recorder node
-```
-ros2 run mir_navigation leRobotDatasetRecorder.py --ros-args -p world:=<world_name>
-```
