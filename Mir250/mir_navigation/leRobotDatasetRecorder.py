@@ -70,7 +70,7 @@ MARKER_TOPIC = "/dataset_goal_marker"
 # Episode configuration
 # =============================================================================
 
-GOAL_REACHED_THRESHOLD_M = 0.30
+GOAL_REACHED_THRESHOLD_M = 0.50
 MAX_EPISODE_DURATION_SEC = 180.0
 
 # =============================================================================

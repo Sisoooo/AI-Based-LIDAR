@@ -57,3 +57,6 @@ ros2 run mir_navigation leRobotDatasetRecorder.py --ros-args -p world:=<world_na
 ros2 run mir_navigation mir_random_nav.py
 ```
 
+```
+CMAKE_POLICY_VERSION_MINIMUM=3.5 colcon build
+```
