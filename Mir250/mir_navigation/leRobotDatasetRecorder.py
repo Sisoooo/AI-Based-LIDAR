@@ -476,12 +476,12 @@ class LeRobotRvizDatasetRecorder(Node):
         """
         Wait until a new goal is received.
         """
-        self.pending_goal = None
-
         while rclpy.ok() and self.pending_goal is None:
             rclpy.spin_once(self, timeout_sec=0.1)
 
-        return self.pending_goal
+        goal = self.pending_goal
+        self.pending_goal = None
+        return goal
 
     def wait_until_odom_available(self):
         """
@@ -524,6 +524,7 @@ class LeRobotRvizDatasetRecorder(Node):
 
         frame_count = 0
         episode_result = "unknown"
+        self.pending_goal = None
 
         with mss.MSS(display=os.environ.get("DISPLAY", ":0")) as sct:
             while rclpy.ok():
@@ -531,6 +532,20 @@ class LeRobotRvizDatasetRecorder(Node):
 
                 # Process ROS callbacks.
                 rclpy.spin_once(self, timeout_sec=0.001)
+
+                if self.pending_goal is not None:
+                    new_goal = self.pending_goal
+                    self.pending_goal = None
+                    if distance_2d(
+                        new_goal.pose.position.x,
+                        new_goal.pose.position.y,
+                        goal_pose.pose.position.x,
+                        goal_pose.pose.position.y,
+                    ) > 0.5:
+                        self.pending_goal = new_goal
+                        episode_result = "new_goal"
+                        self.get_logger().info("New goal received, ending current episode.")
+                        break
 
                 now = time.time()
                 elapsed = now - start_time
