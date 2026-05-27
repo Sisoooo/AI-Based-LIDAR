@@ -32,6 +32,11 @@ Deliverables: Custom AI ROS2 node, trained network model, comparison study repor
 Follow these commands in order to test the simulation.
 Possible world_name parameters are: maze, small_house, hospital; in width order.
 
+0. Building simulation in first terminal
+```
+CMAKE_POLICY_VERSION_MINIMUM=3.5 colcon build && source install/setup.bash
+```
+
 1. Terminal 1: Launching the simulation
 ```
 ros2 launch mir_gazebo mir_gazebo_launch.py world:=<world_name> rviz_config_file:=$(ros2 pkg prefix mir_navigation)/share/mir_navigation/rviz/vla_mir_nav.rviz
@@ -57,6 +62,4 @@ ros2 run mir_navigation leRobotDatasetRecorder.py --ros-args -p world:=<world_na
 ros2 run mir_navigation mir_random_nav.py
 ```
 
-```
-CMAKE_POLICY_VERSION_MINIMUM=3.5 colcon build
-```
+
