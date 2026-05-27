@@ -34,7 +34,7 @@ Possible world_name parameters are: maze, small_house, hospital; in width order.
 
 1. Terminal 1: Launching the simulation
 ```
-ros2 launch mir_gazebo mir_gazebo_launch.py world:=<world_name> rviz_config_file:=$(ros2 pkg prefix mir_navigation)/share/mir_navigation/rviz/mir_nav.rviz
+ros2 launch mir_gazebo mir_gazebo_launch.py world:=<world_name> rviz_config_file:=$(ros2 pkg prefix mir_navigation)/share/mir_navigation/rviz/vla_mir_nav.rviz
 ```
 
 2. Terminal 2: Localization node

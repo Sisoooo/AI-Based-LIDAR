@@ -49,8 +49,8 @@ except ImportError:
 # =============================================================================
 
 FPS = 30
-WIDTH = 1280
-HEIGHT = 720
+WIDTH = 1920
+HEIGHT = 1200
 
 DATASET_BASE_DIR= Path.home() / "lerobot_ros2_rviz_dataset"
 ROBOT_TYPE = "ros2_mobile_robot"
@@ -62,7 +62,7 @@ NUM_EPISODES = 100
 # =============================================================================
 
 GOAL_TOPIC = "/episode_goal"
-ODOM_TOPIC = "/odom"
+ODOM_TOPIC = "/diff_cont/odom"
 CMD_VEL_TOPIC = "/cmd_vel"
 MARKER_TOPIC = "/dataset_goal_marker"
 
@@ -518,6 +518,9 @@ class LeRobotRvizDatasetRecorder(Node):
             self.publish_goal_marker(goal_pose, color_name, shape_name)
             rclpy.spin_once(self, timeout_sec=0.05)
 
+        # Wait for at least one odometry message before starting recording
+        self.wait_until_odom_available()
+
         frame_period = 1.0 / float(FPS)
         start_time = time.time()
         last_marker_publish_time = 0.0
@@ -526,72 +529,81 @@ class LeRobotRvizDatasetRecorder(Node):
         episode_result = "unknown"
         self.pending_goal = None
 
-        with mss.MSS(display=os.environ.get("DISPLAY", ":0")) as sct:
-            while rclpy.ok():
-                loop_start = time.time()
+        try:
+            self.get_logger().info("Opening screen capture (MSS context)...")
+            with mss.MSS(display=os.environ.get("DISPLAY", ":0")) as sct:
+                self.get_logger().info("Screen capture started")
+                while rclpy.ok():
+                    loop_start = time.time()
 
-                # Process ROS callbacks.
-                rclpy.spin_once(self, timeout_sec=0.001)
+                    # Process ROS callbacks.
+                    rclpy.spin_once(self, timeout_sec=0.001)
 
-                if self.pending_goal is not None:
-                    new_goal = self.pending_goal
-                    self.pending_goal = None
-                    if distance_2d(
-                        new_goal.pose.position.x,
-                        new_goal.pose.position.y,
-                        goal_pose.pose.position.x,
-                        goal_pose.pose.position.y,
-                    ) > 0.5:
-                        self.pending_goal = new_goal
-                        episode_result = "new_goal"
-                        self.get_logger().info("New goal received, ending current episode.")
+                    if self.pending_goal is not None:
+                        new_goal = self.pending_goal
+                        self.pending_goal = None
+                        if distance_2d(
+                            new_goal.pose.position.x,
+                            new_goal.pose.position.y,
+                            goal_pose.pose.position.x,
+                            goal_pose.pose.position.y,
+                        ) > 0.5:
+                            self.pending_goal = new_goal
+                            episode_result = "new_goal"
+                            self.get_logger().info("New goal received, ending current episode.")
+                            break
+
+                    now = time.time()
+                    elapsed = now - start_time
+
+                    # Republish the marker periodically.
+                    if now - last_marker_publish_time > 1.0:
+                        self.publish_goal_marker(goal_pose, color_name, shape_name)
+                        last_marker_publish_time = now
+
+                    state, action, distance_to_goal = self.build_state_action_and_distance(
+                        goal_pose
+                    )
+
+                    if state is None:
+                        time.sleep(0.01)
+                        continue
+
+                    image = self.capture_rviz_image(sct)
+
+                    frame = {
+                        "observation.images.rviz": image,
+                        "observation.state": state,
+                        "action": action,
+                        "task": task_prompt,
+                    }
+
+                    self.dataset.add_frame(frame)
+                    frame_count += 1
+
+                    if distance_to_goal < GOAL_REACHED_THRESHOLD_M:
+                        episode_result = "success"
+                        self.get_logger().info(
+                            f"Goal reached. Distance={distance_to_goal:.3f} m"
+                        )
                         break
 
-                now = time.time()
-                elapsed = now - start_time
+                    if elapsed > MAX_EPISODE_DURATION_SEC:
+                        episode_result = "timeout"
+                        self.get_logger().warn(
+                            f"Episode timeout after {elapsed:.2f} seconds."
+                        )
+                        break
 
-                # Republish the marker periodically.
-                if now - last_marker_publish_time > 1.0:
-                    self.publish_goal_marker(goal_pose, color_name, shape_name)
-                    last_marker_publish_time = now
-
-                state, action, distance_to_goal = self.build_state_action_and_distance(
-                    goal_pose
-                )
-
-                if state is None:
-                    time.sleep(0.01)
-                    continue
-
-                image = self.capture_rviz_image(sct)
-
-                frame = {
-                    "observation.images.rviz": image,
-                    "observation.state": state,
-                    "action": action,
-                    "task": task_prompt,
-                }
-
-                self.dataset.add_frame(frame)
-                frame_count += 1
-
-                if distance_to_goal < GOAL_REACHED_THRESHOLD_M:
-                    episode_result = "success"
-                    self.get_logger().info(
-                        f"Goal reached. Distance={distance_to_goal:.3f} m"
-                    )
-                    break
-
-                if elapsed > MAX_EPISODE_DURATION_SEC:
-                    episode_result = "timeout"
-                    self.get_logger().warn(
-                        f"Episode timeout after {elapsed:.2f} seconds."
-                    )
-                    break
-
-                sleep_time = frame_period - (time.time() - loop_start)
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
+                    sleep_time = frame_period - (time.time() - loop_start)
+                    if sleep_time > 0:
+                        time.sleep(sleep_time)
+            
+            self.get_logger().info("Screen capture stopped (MSS context closed)")
+        except Exception as e:
+            self.get_logger().error(f"Error during episode recording: {type(e).__name__}: {e}")
+            import traceback
+            self.get_logger().error(f"Traceback: {traceback.format_exc()}")
 
         if frame_count > 0:
             self.dataset.save_episode()
