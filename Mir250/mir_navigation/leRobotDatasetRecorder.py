@@ -183,8 +183,6 @@ class LeRobotRvizDatasetRecorder(Node):
             10,
         )
 
-        self.dataset = self.create_lerobot_dataset()
-
         self.get_logger().info("LeRobot RViz dataset recorder started.")
         self.get_logger().info(f"World: {world_name}")
         self.get_logger().info(f"Waiting for goals on topic: {GOAL_TOPIC}")
@@ -214,9 +212,10 @@ class LeRobotRvizDatasetRecorder(Node):
     # LeRobot dataset creation
     # -------------------------------------------------------------------------
 
-    def create_lerobot_dataset(self) -> LeRobotDataset:
+    def create_lerobot_dataset(self, episode_index: int) -> LeRobotDataset:
         """
-        Create a LeRobotDataset.
+        Create a LeRobotDataset for a specific episode.
+        Each episode gets its own unique directory.
 
         Features:
           observation.images.rviz:
@@ -229,6 +228,9 @@ class LeRobotRvizDatasetRecorder(Node):
           action:
             /cmd_vel command.
         """
+
+        # Create a unique directory for this episode
+        episode_root = self.dataset_root.parent / f"{self.dataset_root.name}_episode_{episode_index}"
 
         features = {
             "observation.images.rviz": {
@@ -261,7 +263,7 @@ class LeRobotRvizDatasetRecorder(Node):
 
         dataset = LeRobotDataset.create(
             repo_id=self.repo_id,
-            root=self.dataset_root,
+            root=episode_root,
             fps=FPS,
             features=features,
             robot_type=ROBOT_TYPE,
@@ -305,6 +307,7 @@ class LeRobotRvizDatasetRecorder(Node):
         Publish a colored marker at the goal position.
 
         The marker is visible in RViz and becomes part of the captured image.
+        The marker is published in the map frame with the goal coordinates.
         """
 
         marker = Marker()
@@ -366,7 +369,6 @@ class LeRobotRvizDatasetRecorder(Node):
 
         else:
             raise ValueError(f"Unknown shape: {shape_name}")
-
         self.marker_pub.publish(marker)
 
     def delete_goal_marker(self, frame_id: str):
@@ -494,6 +496,7 @@ class LeRobotRvizDatasetRecorder(Node):
     def record_one_episode(self, episode_index: int):
         """
         Record one navigation episode.
+        Each episode gets its own dataset which is finalized immediately after.
         """
 
         self.get_logger().info(f"Waiting for goal for episode {episode_index}...")
@@ -511,6 +514,10 @@ class LeRobotRvizDatasetRecorder(Node):
             f"goal_x={goal_pose.pose.position.x:.3f}, "
             f"goal_y={goal_pose.pose.position.y:.3f}"
         )
+
+        # Create a fresh dataset for this episode only
+        self.get_logger().info(f"Creating dataset for episode {episode_index}...")
+        dataset = self.create_lerobot_dataset(episode_index)
 
         # Publish marker several times before starting capture.
         # This helps ensure RViz receives it before the first recorded frame.
@@ -578,7 +585,7 @@ class LeRobotRvizDatasetRecorder(Node):
                         "task": task_prompt,
                     }
 
-                    self.dataset.add_frame(frame)
+                    dataset.add_frame(frame)
                     frame_count += 1
 
                     if distance_to_goal < GOAL_REACHED_THRESHOLD_M:
@@ -605,8 +612,9 @@ class LeRobotRvizDatasetRecorder(Node):
             import traceback
             self.get_logger().error(f"Traceback: {traceback.format_exc()}")
 
+        # Save and finalize this episode's dataset immediately
         if frame_count > 0:
-            self.dataset.save_episode()
+            dataset.save_episode()
             self.get_logger().info(
                 f"Saved episode {episode_index}: "
                 f"frames={frame_count}, "
@@ -614,10 +622,15 @@ class LeRobotRvizDatasetRecorder(Node):
                 f"task='{task_prompt}'"
             )
         else:
-            self.dataset.clear_episode_buffer()
+            dataset.clear_episode_buffer()
             self.get_logger().warn(
                 f"Episode {episode_index} had zero frames and was discarded."
             )
+
+        # Finalize this episode's dataset immediately
+        self.get_logger().info(f"Finalizing dataset for episode {episode_index}...")
+        dataset.finalize()
+        self.get_logger().info(f"Dataset finalized for episode {episode_index}")
 
         self.delete_goal_marker(goal_pose.header.frame_id)
 
@@ -627,13 +640,11 @@ class LeRobotRvizDatasetRecorder(Node):
 
     def close_dataset(self):
         """
-        Finalize the LeRobot dataset.
-
-        This is required before reading the dataset or pushing it to the Hub.
+        Cleanup on shutdown.
+        All datasets are finalized immediately after each episode,
+        so nothing to do here.
         """
-        self.get_logger().info("Finalizing LeRobot dataset...")
-        self.dataset.finalize()
-        self.get_logger().info("Dataset finalized.")
+        self.get_logger().info("Shutdown: all datasets have been finalized.")
 
 
 # =============================================================================

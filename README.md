@@ -39,7 +39,7 @@ CMAKE_POLICY_VERSION_MINIMUM=3.5 colcon build && source install/setup.bash
 
 1. Terminal 1: Launching the simulation
 ```
-ros2 launch mir_gazebo mir_gazebo_launch.py world:=<world_name> rviz_config_file:=$(ros2 pkg prefix mir_navigation)/share/mir_navigation/rviz/vla_mir_nav.rviz
+ros2 launch mir_gazebo mir_gazebo_launch.py world:=<world_name> rviz_config_file:=$(ros2 pkg prefix mir_navigation)/share/mir_navigation/rviz/vla_mir_nav_TD.rviz
 ```
 
 2. Terminal 2: Localization node
