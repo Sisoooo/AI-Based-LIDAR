@@ -49,8 +49,8 @@ except ImportError:
 # =============================================================================
 
 FPS = 30
-WIDTH = 1920
-HEIGHT = 1200
+WIDTH = 1028
+HEIGHT = 1028
 
 DATASET_BASE_DIR= Path.home() / "lerobot_ros2_rviz_dataset"
 ROBOT_TYPE = "ros2_mobile_robot"
@@ -85,8 +85,8 @@ MAX_EPISODE_DURATION_SEC = 180.0
 #
 
 SCREEN_CAPTURE_REGION = {
-    "top": 0,
-    "left": 0,
+    "top": 110,
+    "left": 521,
     "width": WIDTH,
     "height": HEIGHT,
 }
