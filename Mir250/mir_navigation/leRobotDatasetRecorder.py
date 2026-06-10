@@ -146,8 +146,8 @@ class LeRobotRvizDatasetRecorder(Node):
     def __init__(self):
         super().__init__("lerobot_rviz_dataset_recorder")
 
-        self.declare_parameter("world_name", "maze")
-        world_name =self.get_parameter("world_name").get_parameter_value().string_value
+        self.declare_parameter("world", "maze")
+        world_name = self.get_parameter("world").get_parameter_value().string_value
         self.dataset_root = DATASET_BASE_DIR / f"Images_{world_name}"
         self.repo_id = f"local/ros2-rviz-{world_name}-navigation"
 

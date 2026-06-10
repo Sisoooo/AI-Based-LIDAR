@@ -19,6 +19,7 @@ import argparse
 import math
 import random
 import time
+from collections import deque
 
 import rclpy
 from rclpy.node import Node
@@ -33,8 +34,9 @@ MAP_QOS = QoSProfile(
     durability=QoSDurabilityPolicy.TRANSIENT_LOCAL
 )
 
-def fetch_free_cells(node: Node, map_topic: str, margin_m:float) -> list:
-    """Block until one /map message arrives; return list of free (x, y) world coords."""
+def fetch_free_cells(node: Node, map_topic: str, margin_m: float) -> list:
+    """Block until one /map message arrives; return list of free (x, y) world coords
+    that are reachable from the map origin (robot start position) via flood-fill."""
     free_cells = []
     done = [False]
 
@@ -48,7 +50,8 @@ def fetch_free_cells(node: Node, map_topic: str, margin_m:float) -> list:
         height = info.height
         data = msg.data
 
-        margin_cells = int(math.ceil(margin_m/res))
+        # Build obstacle margin set
+        margin_cells = int(math.ceil(margin_m / res))
         too_close = set()
         for idx, val in enumerate(data):
             if val != 0:
@@ -59,21 +62,63 @@ def fetch_free_cells(node: Node, map_topic: str, margin_m:float) -> list:
                         if dr * dr + dc * dc <= margin_cells * margin_cells:
                             nr, nc = row + dr, col + dc
                             if 0 <= nr < height and 0 <= nc < width:
-                                too_close.add(nr * width + nc) 
+                                too_close.add(nr * width + nc)
 
+        # Find the grid cell corresponding to the map origin (robot start at world 0,0)
         ox = info.origin.position.x
         oy = info.origin.position.y
-        for idx, val in enumerate(data):
-            if val == 0 and idx not in too_close:  # 0 = free, 100 = occupied, -1 = unknown
+        start_col = int((-ox) / res)
+        start_row = int((-oy) / res)
+        start_col = max(0, min(width - 1, start_col))
+        start_row = max(0, min(height - 1, start_row))
+
+        # BFS flood-fill from the start cell through free, non-margined cells
+        start_idx = start_row * width + start_col
+        if data[start_idx] != 0:
+            # If start cell itself is occupied, find nearest free cell
+            node.get_logger().warn(
+                f"Start cell ({start_col},{start_row}) is not free, searching nearby..."
+            )
+            found = False
+            for radius in range(1, 20):
+                for dr in range(-radius, radius + 1):
+                    for dc in range(-radius, radius + 1):
+                        nr, nc = start_row + dr, start_col + dc
+                        if 0 <= nr < height and 0 <= nc < width:
+                            idx = nr * width + nc
+                            if data[idx] == 0 and idx not in too_close:
+                                start_idx = idx
+                                found = True
+                                break
+                    if found:
+                        break
+                if found:
+                    break
+
+        visited = set()
+        queue = deque([start_idx])
+        visited.add(start_idx)
+
+        while queue:
+            idx = queue.popleft()
+            if data[idx] == 0 and idx not in too_close:
                 col = idx % width
                 row = idx // width
                 free_cells.append((
                     ox + (col + 0.5) * res,
                     oy + (row + 0.5) * res,
                 ))
+                # Expand to 4-connected neighbours
+                for nr, nc in ((row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)):
+                    if 0 <= nr < height and 0 <= nc < width:
+                        nidx = nr * width + nc
+                        if nidx not in visited and data[nidx] == 0:
+                            visited.add(nidx)
+                            queue.append(nidx)
+
         node.get_logger().info(
             f'Map received: {width}x{height} cells @ {res:.3f} m/cell — '
-            f'{len(free_cells)} safe cells (margin={margin_m})'
+            f'{len(free_cells)} reachable safe cells (margin={margin_m}m)'
         )
 
     sub = node.create_subscription(OccupancyGrid, map_topic, on_map, MAP_QOS)
