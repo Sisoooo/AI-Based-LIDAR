@@ -44,7 +44,7 @@ ros2 launch mir_gazebo mir_gazebo_launch.py world:=<world_name> rviz_config_file
 
 2. Terminal 2: Localization node
 ```
-ros2 launch mir_navigation amcl.py use_sim_time:=true map:=$(ros2 pkg prefix mir_navigation)/share/mir_navigation/maps/maze.yaml
+ros2 launch mir_navigation amcl.py use_sim_time:=true map:=$(ros2 pkg prefix mir_navigation)/share/mir_navigation/maps/<world_name>.yaml
 ```
 
 3. Terminal 3: Navigation node 
