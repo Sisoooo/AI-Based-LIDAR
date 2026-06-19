@@ -54,7 +54,7 @@ def fetch_free_cells(node: Node, map_topic: str, margin_m: float) -> list:
         margin_cells = int(math.ceil(margin_m / res))
         too_close = set()
         for idx, val in enumerate(data):
-            if val != 0:
+            if val > 0:  # only occupied cells (not unknown=-1)
                 col = idx % width
                 row = idx // width
                 for dr in range(-margin_cells, margin_cells + 1):
@@ -112,7 +112,7 @@ def fetch_free_cells(node: Node, map_topic: str, margin_m: float) -> list:
                 for nr, nc in ((row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)):
                     if 0 <= nr < height and 0 <= nc < width:
                         nidx = nr * width + nc
-                        if nidx not in visited and data[nidx] == 0:
+                        if nidx not in visited and data[nidx] == 0 and nidx not in too_close:
                             visited.add(nidx)
                             queue.append(nidx)
 
@@ -152,7 +152,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--cooldown', type=float, default=3.0,
                         help='Seconds to wait after each goal (default: 3.0)')
-    parser.add_argument('--margin', type=float, default=1,
+    parser.add_argument('--margin', type=float, default=0.5,
                         help='Min distance from obstacles for goal cells')
     parser.add_argument('--map_topic', type=str, default='/map',
                         help='Map topic name (default: /map)')

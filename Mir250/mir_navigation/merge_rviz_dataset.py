@@ -42,12 +42,12 @@ def natural_sort_key(s: Path) -> list:
 
 
 def read_task_from_episode(ep_dir: Path) -> str:
-    tasks_path = ep_dir / "meta" / "tasks.jsonl"
+    tasks_path = ep_dir / "meta" / "tasks.parquet"
     if tasks_path.exists():
-        with open(tasks_path) as f:
-            line = f.readline()
-            if line:
-                return json.loads(line).get("task", "navigate the environment")
+        df = pd.read_parquet(tasks_path)
+        # The task string is stored as the DataFrame index; task_index is a column.
+        if len(df) > 0:
+            return str(df.index[0])
     return "navigate the environment"
 
 
@@ -80,8 +80,10 @@ def main(
     features_no_video = {
         "observation.state": {
             "dtype": "float32",
-            "shape": (6,),
-            "names": ["odom_x", "odom_y", "odom_yaw", "odom_linear_x", "odom_linear_y", "odom_angular_z"],
+            "shape": (9,),
+            "names": ["odom_x", "odom_y", "odom_yaw", 
+                      "odom_linear_x", "odom_linear_y", "odom_angular_z", 
+                      "prev_cmd_linear_x", "prev_cmd_linear_y", "prev_cmd_angular_z"],
         },
         "action": {
             "dtype": "float32",

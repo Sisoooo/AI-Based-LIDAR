@@ -62,4 +62,7 @@ ros2 run mir_navigation leRobotDatasetRecorder.py --ros-args -p world:=<world_na
 ros2 run mir_navigation mir_random_nav.py
 ```
 
-
+6. Running dataset merger
+```
+python3 merge_rviz_dataset.py --data_dir ~/lerobot_ros2_rviz_dataset
+```

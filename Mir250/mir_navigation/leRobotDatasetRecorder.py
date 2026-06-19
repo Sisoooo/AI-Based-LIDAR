@@ -90,7 +90,7 @@ MARKER_TOPIC = "/dataset_goal_marker"
 # =============================================================================
 
 GOAL_REACHED_THRESHOLD_M = 0.50
-MAX_EPISODE_DURATION_SEC = 180.0
+MAX_EPISODE_DURATION_SEC = 300.0
 
 SCREEN_CAPTURE_REGION = {"top": 0, "left": 0, "width": WIDTH, "height": HEIGHT}
 
