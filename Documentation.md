@@ -99,7 +99,7 @@ Once the model has been trained, it is possible to test its functionalities sinc
 
 After running the Rviz environment and the localization node, the following commands must be run in order and in separate terminals (assuming AI-Based-LIDAR being already built):
 
-3. Terminal 3: Goal monitoring node 
+1. Terminal 3: Goal monitoring node 
 ```
 cd AI-Based-LIDAR/Mir250/mir_navigation
 python3 goal_monitor_node.py --ros-args -p cmd_vel_topic:=/diff_cont/cmd_vel_unstamped
@@ -108,7 +108,7 @@ python3 goal_monitor_node.py --ros-args -p cmd_vel_topic:=/diff_cont/cmd_vel_uns
 This node initializes the logic that controls if the goal has been reached, along with actually publishing the marker.
 The node also sends the robot's initial position to /PoseStampede, bypassing the manual publication.
 
-3. Terminal 4: Inference node 
+2. Terminal 4: Inference node 
 ```
 cd AI-Based-LIDAR/Mir250/mir_navigation
 python3 inference_ros2_node.py --ros-args \
@@ -120,7 +120,7 @@ python3 inference_ros2_node.py --ros-args \
 
 Running inference node, change the prompt to associate new tasks with colors and shapes among the allowed ones
 
-4. Terminal 5: Prompt
+3. Terminal 5: Prompt
 ```
 cd AI-Based-LIDAR/Mir250/mir_navigation
 ros2 topic pub --once /inference_prompt std_msgs/String "{data: 'reach the red square'}"
