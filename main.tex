@@ -1,0 +1,105 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{cite}
+\usepackage{url}
+
+\begin{document}
+
+\title{Comparison study of pi0.5 VLA model's navigation planning\\
+capabilities to Nav2's performances within Gazebo/Rviz simulated environments}
+
+\author{
+    \IEEEauthorblockN{Sisani Francesco}
+    \IEEEauthorblockA{
+        Department of Informatics, Bioengineering, Robotics and Systems Engineering\\
+        University of Genoa\\
+        Genova, Italy\\
+        s8434670@studenti.unige.it
+    }
+}
+
+\maketitle
+
+\begin{abstract}
+VLA models are known for their capabilities and use cases in real robot contexts that use actual manipulator arms to test daily tasks, such as folding the laundry, but can they be used in the context of simulated tasks, where they can only use screen recordings as training? This report aims to understand it through a comparison with Nav2, which is the most commonly used navigation tool in simulated robotics, and its performances. The objective is thus to implement Nav2 in a Rviz simulated environment with three different maps, to register 100 episodes on each map and creating a LeRobot dataset to feed to the VLA model. Afterwards, the same model will be run with the trained model connected to the velocity topic to verify the quality of the results.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Vision-Language-Action, Nav2, Navigation, Rviz, Imitation Learning
+\end{IEEEkeywords}
+
+\section{Introduction}
+
+Vision-Language-Action (VLA) models have recently emerged as a unifying paradigm for embodied artificial intelligence, combining large-scale internet pretraining of vision-language backbones with action-generation policies capable of controlling physical robots directly from natural language instructions and camera observations \cite{black2024pi0, black2025pi05, brohan2023rt2}. Models such as $\pi_0$ and its successor $\pi_{0.5}$ have demonstrated strong generalization across a wide range of manipulation tasks, including everyday activities such as folding laundry, cleaning surfaces, and object rearrangement, typically deployed on real robotic arms operating under continuous visual feedback \cite{black2025pi05}. Broader surveys of the VLA literature confirm that most reported successes concern manipulation-centric benchmarks and hardware platforms equipped with articulated end-effectors, rather than mobile robot navigation \cite{ma2025surveyembodied, sapkota2025vlaapplications}.
+
+At the same time, mobile robot navigation in both simulated and real-world environments continues to rely predominantly on classical, model-based stacks. The Robot Operating System 2 (ROS 2) navigation framework, Nav2, is the de facto standard for autonomous navigation in academic and industrial mobile robotics, combining probabilistic localization, global path planning, and reactive local control into a single modular pipeline \cite{wei2025rosnavigation}. Recent works have begun to directly compare such classical planning architectures against learned, end-to-end policies, showing that while learned approaches can match or even exceed classical planners in specific scenarios, they often exhibit reduced robustness and interpretability outside their training distribution \cite{gapud2025classicvsete, xu2021localmotionplanning}.
+
+This raises a question that, to the best of our knowledge, remains largely unexplored in the current VLA literature: can a VLA model originally designed for manipulation tasks be repurposed as a navigation policy for a mobile robot, trained purely from recorded camera observations and expert demonstrations, and is such a transfer feasible at all, in the sense of producing coherent, non-divergent navigation behavior, rather than necessarily matching the performance of a mature, classical planner such as Nav2? Since VLA models are ultimately trained through imitation learning, their behavior is subject to well-documented phenomena such as covariate shift, whereby small deviations from the training distribution accumulate over the length of an episode and can lead to compounding navigation errors \cite{zare2023imitationsurvey, spencer2020feedback, mehta2024stablebc}. Recent work on self-evolved imitation learning in simulated worlds further suggests that this gap can be partially mitigated through online adaptation, motivating a closer empirical investigation of VLA-based navigation in controlled simulated settings \cite{ye2026selfevolved}.
+
+Accordingly, this report is best framed as a feasibility study rather than a formal head-to-head benchmark. Nav2 is first deployed on a MiR250 mobile robot across three distinct simulated maps exclusively to generate expert demonstrations: 300 navigation episodes (100 per map) are recorded into a LeRobot-compatible dataset. This dataset is then used to fine-tune the $\pi_{0.5}$ model, which is subsequently connected to the very same simulated setup, with its output directly wired to the robot's velocity command topic, so that its resulting navigation behavior, and its trend across evaluation episodes, can be examined against the Nav2 demonstrations it was trained on.
+
+The remainder of this report is organized as follows: Section~II reviews related work on VLA models and classical navigation stacks; Section~III describes the Nav2 and $\pi_{0.5}$ methodology; Section~IV details the experimental design, including map selection, dataset generation, and training procedure; Section~V discusses the observed feasibility outcomes and their implications for using general-purpose VLA models as navigation policies.
+
+\section{Related Work}
+
+\subsection{Vision-Language-Action Models}
+The $\pi_0$ model introduced a flow-matching action-generation head on top of a pretrained vision-language backbone, enabling a single policy to control multiple robot embodiments across a broad range of dexterous manipulation tasks \cite{black2024pi0}. Its successor, $\pi_{0.5}$, extends this approach with heterogeneous co-training and open-world generalization, allowing the model to follow high-level instructions in previously unseen homes \cite{black2025pi05}. A parallel line of work, RT-2, showed that transferring web-scale vision-language knowledge into a robotic action space improves semantic generalization and reasoning about novel objects \cite{brohan2023rt2}. Beyond model design, \cite{kim2025finetuningvla} studies how fine-tuning strategy choices affect inference speed and task success for VLA models such as OpenVLA, which is directly relevant to the fine-tuning procedure adopted for $\pi_{0.5}$ in this report. Recent surveys consolidate this fast-growing area, cataloguing architectures, training recipes, and open challenges for embodied VLA systems \cite{ma2025surveyembodied, sapkota2025vlaapplications}; both surveys note that reported deployments are overwhelmingly manipulation-centric, with mobile navigation remaining a comparatively unexplored application. The most closely related prior work is NavOL, which trains a navigation policy with online imitation learning and reports that closed-loop, self-corrective training narrows the gap with classical planners \cite{wei2026navol}; unlike NavOL, this report evaluates a general-purpose VLA model that was not originally designed for navigation, fine-tuned offline on a fixed dataset.
+
+\subsection{Classical Navigation and Nav2}
+Nav2 is the reference navigation stack for ROS~2-based mobile robots, and recent surveys detail its layered architecture of localization, global/local costmaps, and pluggable planner and controller servers coordinated through a behavior-tree executor \cite{wei2025rosnavigation}. Because Nav2's planning and control layers are hand-engineered and model-based, its behavior is predictable and easy to inspect, which is why it is used in this report as the source of expert demonstrations rather than as a re-run evaluation baseline. Comparative studies between classical and end-to-end learned navigation stacks show that learned policies can approach classical performance on in-distribution scenarios but tend to degrade sharply when the environment departs from the training conditions \cite{gapud2025classicvsete}. Similarly, \cite{xu2021localmotionplanning} compares purely end-to-end local planners against approaches that learn only a subset of parameters of a classical planner, finding that hybrid solutions retain more of the robustness of classical methods. These findings motivate assessing the feasibility of a fully learned VLA policy (no classical component) trained on unmodified Nav2 demonstrations, rather than pursuing a hybrid approach.
+
+\subsection{Imitation Learning, Covariate Shift, and General Context}
+Because $\pi_{0.5}$ is fine-tuned purely from recorded expert (Nav2) trajectories, its deployment is an instance of imitation learning, whose algorithms, guarantees and open challenges are surveyed in \cite{zare2023imitationsurvey}. A central limitation of naively-trained imitation policies is covariate shift: once the learned policy makes a small error, it enters states that were rarely seen during training, and this mismatch compounds over the length of an episode \cite{spencer2020feedback}. Stable-BC addresses this issue by regularizing the learned policy to remain stable under small perturbations, reducing divergence in behavior-cloned controllers \cite{mehta2024stablebc}. More recent work on self-evolved imitation learning shows that allowing an agent to refine its policy in simulation after the initial cloning phase can partially close the performance gap with respect to expert demonstrations \cite{ye2026selfevolved}. Finally, at a broader level, physical AI is framed as the integration of perception, reasoning and actuation in physically embodied systems \cite{salehi2025physicalai}; this framing situates the present study as a feasibility case study, assessing whether a general-purpose, imitation-learned physical AI policy can plausibly be transferred to a navigation role originally served by a specialized classical controller, rather than aiming to match its performance exactly.
+
+\section{Methodology}
+
+\subsection{Robotic Platform and Simulation Environment}
+All experiments are carried out on a simulated MiR250 differential-drive mobile robot within Gazebo, with RViz used both for visualization and, as detailed below, as the image source consumed by the VLA policy. Three environments of increasing structural complexity are used: \texttt{maze}, \texttt{small\_house}, and \texttt{hospital}, each provided as a pre-built occupancy grid map (\texttt{.pgm}/\texttt{.yaml}) loaded identically for both the Nav2 data-collection phase and the $\pi_{0.5}$ evaluation, so that any observed behavior can be attributed to the navigation policy rather than to the environment.
+
+\subsection{Nav2-Based Expert Demonstration Generation}
+The Nav2 stack (AMCL localization, global/local costmaps, and behavior-tree-based navigator) is configured for the MiR250 footprint and sensors. Its role in this study is exclusively that of a demonstrator, not a matched evaluation baseline: expert navigation episodes are generated automatically, on startup, the current occupancy grid is scanned once to extract every free cell, a safety margin is applied around obstacles via a flood-fill over the inflated map, and one free cell is drawn uniformly at random as the next goal. The goal is sent to Nav2 through \texttt{nav2\_simple\_commander}'s \texttt{BasicNavigator} interface, the task result is awaited, a short cooldown is applied, and the process repeats. This procedure is used to collect 100 successful navigation episodes per map (300 in total across the three maps), which serve as the expert demonstrations used to fine-tune the VLA policy; Nav2 itself is not re-run afterwards as a matched evaluation baseline.
+
+\subsection{LeRobot Dataset Recording}
+While Nav2 drives each episode, a dedicated recorder node logs synchronized observation-action pairs into a LeRobot-compatible dataset. The proprioceptive state is a 9-dimensional vector composed of the robot's odometry (position, orientation and linear/angular velocity components) concatenated with the previously executed velocity command, so that $\text{state}[t] = [\text{odom}[t],\ \text{cmd\_vel}[t-1]]$. The visual observation is a raw RGB screen capture of the RViz window at $1920\times1200$ resolution, matching exactly what the policy will later receive at inference time. The action label for each frame is the 3-dimensional velocity command actually issued by Nav2 ($v_x$, $v_y \approx 0$, $\omega_z$) on the robot's differential-drive controller topic. Each episode is additionally paired with a natural-language prompt describing the goal (e.g. "reach the red square"), constructed from a small vocabulary of colors and marker shapes rendered in the simulated scene, giving the VLA model a language-grounded target consistent with its original manipulation-oriented training.
+
+\subsection{$\pi_{0.5}$ Fine-Tuning and Closed-Loop Deployment}
+The recorded dataset is used to fine-tune the $\pi_{0.5}$ checkpoint on the navigation task using the \texttt{openpi} training framework, producing a navigation-specialized policy served over a websocket interface on a remote GPU host. At inference time, a ROS~2 node mirrors the recorder's observation pipeline in closed loop: it captures the current RViz frame, reads the current odometry and previous command, and sends the resulting (image, state, prompt) tuple to the policy server via \texttt{websocket\_client\_policy}. The server returns a short chunk of predicted actions, which are published sequentially to the same velocity command topic used by Nav2; the query is then repeated, either after each single action (receding-horizon, most reactive) or after the full chunk. This design keeps the actuation interface identical to the one used during Nav2-driven data collection, so that any behavior observed in Section~V can be attributed to the learned policy itself rather than to differences in the control interface.
+
+\section{Experimental Design}
+
+\subsection{Study Design}
+Because the goal of this study is to assess the \emph{feasibility} of repurposing a manipulation-oriented VLA model for navigation, rather than to run a controlled head-to-head benchmark, the experimental design is intentionally asymmetric between the two controllers. Nav2 is used exclusively to generate the training data: for each of the three simulated maps (\texttt{maze}, \texttt{small\_house}, \texttt{hospital}), 100 expert navigation episodes are recorded under the free-cell goal-sampling procedure described in Section~III, for a total of 300 episodes used to fine-tune $\pi_{0.5}$. Once fine-tuned, $\pi_{0.5}$ is connected to the identical simulated setup used for data collection -- same maps, same goal/observation/action interface -- and its resulting navigation behavior is then observed and characterized qualitatively across its own evaluation episodes, rather than against a fixed, matched number of separately-run Nav2 evaluation episodes.
+
+\subsection{Evaluation Protocol and Metrics}
+A controller-agnostic ROS~2 observer node is used to log metrics whenever either controller is driving the robot, without modifying either navigation pipeline. The node listens passively to the odometry, velocity-command, and goal topics that both pipelines already publish, so no controller-specific instrumentation is required. For every episode it records: whether the episode ended in success, timeout, or was aborted by a new goal arriving early; the elapsed time to reach the goal; the actually-driven path length compared to the straight-line distance to the goal, expressed as a \emph{path efficiency} ratio; the final distance to the goal at episode end (informative mainly for failed episodes); and command-smoothness statistics, namely the mean absolute angular velocity and its standard deviation over the episode. A success is declared when the robot comes within a fixed distance threshold of the goal; an episode that exceeds a fixed time budget without reaching the goal is declared a timeout. The full trajectory of each episode is additionally logged to a separate file for later visual inspection. During Nav2 data collection these metrics characterize the expert demonstrations used for training; during $\pi_{0.5}$ evaluation, the same metrics are tracked across successive episodes to observe whether its behavior trends toward the Nav2 demonstrations (e.g. stabilizing success rate, improving path efficiency) or diverges from them, which is the central feasibility signal sought by this study. Table~\ref{tab:eval-params} summarizes the fixed protocol parameters used across all runs.
+
+\begin{table}[htbp]
+\caption{Evaluation Protocol Parameters}
+\label{tab:eval-params}
+\centering
+\begin{tabular}{ll}
+\hline
+\textbf{Parameter} & \textbf{Value} \\
+\hline
+Nav2 training episodes per map & 100 (300 total) \\
+Success distance threshold & 0.50~m \\
+Episode timeout & 300~s \\
+Goal-proximity check rate & 10~Hz \\
+Trajectory logging rate & 5~Hz \\
+Maps & maze, small\_house, hospital \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Data Analysis Procedure}
+Rather than relying on graphical performance curves, which are of limited value for a feasibility study built around a single fine-tuned policy rather than large, matched populations of episodes for both controllers, results are analyzed through (i) descriptive tables summarizing the Nav2 expert demonstrations (success rate, mean path length, path efficiency, command-smoothness statistics) as a reference against which $\pi_{0.5}$'s own evaluation-episode statistics, and their trend over time, are informally compared; (ii) trajectory overlay plots, in which all logged trajectories for a given map are drawn on top of its occupancy grid, using solid lines for successful episodes and dashed lines for failed ones, to visually inspect how closely $\pi_{0.5}$'s routes track the Nav2 demonstrations it was trained on; and (iii) a qualitative case-study review of the worst-performing $\pi_{0.5}$ episodes, ranked by final distance to goal, to characterize typical failure modes (e.g. stalling, drifting into obstacles, or oscillatory behavior) that are the main evidence used to judge the feasibility of this policy transfer.
+
+\section{Results}
+% TODO
+
+\bibliographystyle{IEEEtran}
+\bibliography{Reference}
+
+\end{document}

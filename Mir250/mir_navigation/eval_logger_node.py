@@ -6,6 +6,17 @@ Runs alongside EITHER Nav2 (mir_random_nav.py) OR the pi0.5 inference stack
 (goal_monitor_node.py + inference_ros2_node.py) — it only observes topics that
 both pipelines already publish, so no changes to those nodes are required.
 
+This is a FEASIBILITY study, not a matched head-to-head benchmark:
+    - Run it with controller_name:=nav2 WHILE mir_random_nav.py drives Nav2 to
+      collect the 100 expert demonstration episodes per map (300 total) that
+      are later turned into the LeRobot dataset used to fine-tune pi0.5. These
+      rows become the reference/expert statistics in the analysis notebook.
+    - Run it again with controller_name:=pi05 WHILE the fine-tuned policy is
+      deployed on the SAME maps, to observe its trend across evaluation
+      episodes (does it stabilize/approach the Nav2 reference, or diverge?).
+      There is no requirement to match Nav2's episode count for this phase —
+      log as many pi0.5 episodes as needed to see a clear trend.
+
 For every episode (delimited by a new message on /episode_goal) it records:
     - success / timeout / aborted (new goal arrived before this one finished)
     - time to goal (s)
@@ -19,9 +30,11 @@ Output (under --output_dir, default ~/nav_eval_logs):
     trajectories/{controller}_{map}_{episode_id:04d}.csv   per-episode (t,x,y)
 
 Usage (example, run in a spare terminal while Nav2 or pi0.5 is driving):
+    # Nav2 demonstration collection (repeat per map: maze, small_house, hospital)
     python3 eval_logger_node.py --ros-args \\
         -p controller_name:=nav2 -p map_name:=maze
 
+    # pi0.5 feasibility/trend evaluation (same maps, same output CSV)
     python3 eval_logger_node.py --ros-args \\
         -p controller_name:=pi05 -p map_name:=maze \\
         -p cmd_vel_topic:=/diff_cont/cmd_vel_unstamped
